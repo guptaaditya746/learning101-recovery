@@ -1,0 +1,209 @@
+Here is a **ready-to-paste prompt** for the next session:
+
+```text
+I am continuing my thesis/demo project. Please guide me slowly and practically, terminal-first, one milestone at a time.
+
+Important: We are changing the system design slightly.
+
+Previously, the pipeline was mostly:
+PDFs → parse → chunks → extract KG → RDF graph → retrieval/SPARQL → answer
+
+Now I want to move toward a QUERY-FIRST GraphRAG pipeline:
+
+User query
+→ retrieve relevant papers/chunks
+→ build or update a task-aware/query-aware KG patch from those retrieved chunks
+→ convert KG patch to RDF
+→ run SPARQL / graph expansion
+→ hydrate evidence chunks
+→ rank evidence
+→ generate answer later with LLM
+→ evaluate with RAGAS later
+
+Main goal:
+Build a scientific-paper GraphRAG demo where the KG is not only a static prebuilt graph, but can be constructed or expanded based on the user query.
+
+Current constraints:
+- For now, keep no-LLM support working.
+- Later we will add LLM modules.
+- Do not rely only on hosted APIs.
+- Prefer local embeddings and local retrieval first.
+- Keep RDF + SPARQL + RDFLib/Fuseki path, not Neo4j/Cypher.
+- Use RDFLib first, Fuseki later.
+- Keep provenance and traceability central.
+- Every extracted node/edge must trace back to paper_id, section, chunk_id, and source text/span/preview.
+- Use real libraries where practical.
+
+Current project folder:
+thesis-demo/
+papers/
+parsed/
+scripts/
+data/
+graph/
+outputs/
+
+Current papers:
+- LightRAG
+- AutoGraph-R1
+- Mind the Query
+
+Current working pipeline:
+1. PDFs are in papers/
+2. LiteParse extracts text into parsed/
+3. Chunker creates data/chunks.jsonl
+4. BM25 search retrieves chunks
+5. Pydantic models define graph nodes and edges
+6. Heuristic graph extraction creates data/graph_patch.json
+7. RDFLib converts graph_patch.json into graph/latest_graph.ttl
+8. SPARQL query script queries the graph
+9. No-LLM ask pipeline combines retrieval, SPARQL, chunk hydration, and answer stub
+10. We started graph-aware expansion with scripts/10_graph_expand_no_llm.py
+
+Existing important scripts:
+- scripts/05_build_rdf_with_provenance.py
+- scripts/06_ask_no_llm.py
+- scripts/08_build_vector_index.py
+- scripts/09_ask_hybrid_no_llm.py
+- scripts/10_probe_edge_assertions.py
+- scripts/10_graph_expand_no_llm.py
+
+Current RDF design:
+The RDF graph has EdgeAssertion nodes with provenance.
+
+Example EdgeAssertion predicates:
+- kg:chunk_id
+- kg:edgeType
+- kg:paper_id
+- kg:section
+- kg:sentence
+- kg:sourceNode
+- kg:targetNode
+
+Current graph stats from latest build:
+- Nodes: 362
+- Edges: 494
+- Triples: 9449
+
+Conceptual schema:
+Node types:
+- Paper
+- Method
+- Dataset
+- Task
+- Claim
+- Evidence
+- Limitation
+- Metric
+- Benchmark
+
+Edge types:
+- PROPOSES
+- ADDRESSES_TASK
+- USES_METHOD
+- EVALUATES_ON
+- MAKES_CLAIM
+- SUPPORTED_BY
+- HAS_LIMITATION
+- DESCRIBES
+
+Very important design principle:
+Papers should be treated as layered objects:
+
+paper → sections → chunks → evidence
+
+Every answer should be traceable through:
+question
+→ retrieval results
+→ selected chunks
+→ query-aware graph patch
+→ RDF triples / EdgeAssertions
+→ SPARQL query
+→ graph facts
+→ hydrated evidence chunks
+→ final answer
+
+New direction:
+I want to implement query-first KG construction.
+
+The new pipeline should look like this:
+
+1. User asks a question.
+2. Retrieve candidate chunks using hybrid retrieval:
+   - BM25
+   - sentence-transformers embeddings
+   - FAISS
+   - reciprocal rank fusion
+3. Select top chunks as query context.
+4. Build a query-aware KG patch only from those chunks.
+   - First version can still use heuristics/rules.
+   - Later version can use an LLM.
+5. Validate the KG patch with Pydantic.
+6. Convert the query-aware KG patch to RDF.
+7. Either:
+   - save it as a separate temporary graph, or
+   - merge it into the main graph with provenance.
+8. Run SPARQL over the query-aware graph.
+9. Expand graph neighborhood.
+10. Hydrate all evidence chunks.
+11. Rank evidence.
+12. Produce answer stub now.
+13. Later produce LLM answer.
+14. Later evaluate with RAGAS.
+
+What I want next:
+Please help me design and implement the next milestone.
+
+I think the next script should be something like:
+
+scripts/11_query_first_graph_patch.py
+
+Goal of this script:
+Given a query, it should:
+- run hybrid retrieval or accept retrieved chunk IDs
+- read the selected chunks from data/chunks.jsonl
+- create a query-aware graph patch from those chunks
+- validate it with the existing Pydantic schema if possible
+- save it to something like outputs/query_graph_patch.json
+- print a trace showing:
+  - question
+  - retrieved chunks
+  - chunk IDs used for KG construction
+  - extracted nodes
+  - extracted edges
+  - provenance for each node/edge
+
+Important:
+Please do not jump too far.
+First discuss the design simply.
+Then give one concrete terminal-first step.
+Prefer pasteable code.
+Ask me to paste outputs only when necessary.
+Keep no-LLM first.
+Keep RDF/SPARQL.
+Keep provenance central.
+Use external libraries where practical.
+```
+
+The key change is this:
+
+```text
+Old system:
+build KG first → ask questions over it
+
+New system:
+ask question first → retrieve evidence → build/update KG for that question → answer from trace
+```
+
+That is a stronger thesis direction because it lets you compare:
+
+```text
+static KG GraphRAG
+vs
+query-aware KG GraphRAG
+vs
+LLM-assisted query-aware KG GraphRAG
+```
+
+Nice little research creature. More spine, less soup.
+
